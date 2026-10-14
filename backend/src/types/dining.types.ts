@@ -3,6 +3,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    public upstreamStatus?: number,
+    public retryAt?: string,
   ) {
     super(message);
   }

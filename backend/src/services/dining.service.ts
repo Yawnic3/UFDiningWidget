@@ -1,4 +1,5 @@
 import { DINING_API_BASE } from "../config/dining.config.js";
+import { isDate, localParts } from "./meal-selection.service.js";
 import {
   ApiError,
   type Menu,
@@ -98,6 +99,7 @@ export function parseMenu(value: unknown): Menu {
 export class DiningService {
   private cache = new Map<string, { expires: number; value: unknown }>();
   private pending = new Map<string, Promise<unknown>>();
+  private denied = new Map<string, { expires: number; error: ApiError }>();
 
   constructor(
     private fetcher: typeof fetch = fetch,
@@ -105,9 +107,48 @@ export class DiningService {
     private clock = Date.now,
   ) {}
 
+  private endpoint(
+    location: string,
+    resource: "periods/" | "menu",
+    date: string,
+    periodId?: string,
+  ): string {
+    if (!isDate(date)) {
+      throw new ApiError(
+        400,
+        "INVALID_DATE",
+        "Use a date in YYYY-MM-DD format.",
+      );
+    }
+
+    const url = new URL(
+      `/locations/${encodeURIComponent(location)}/${resource}`,
+      DINING_API_BASE,
+    );
+    url.searchParams.set("date", date);
+
+    if (periodId !== undefined) {
+      if (!periodId.trim()) {
+        throw new ApiError(
+          503,
+          "MEAL_UNAVAILABLE",
+          "No published meal period ID is available.",
+        );
+      }
+      url.searchParams.set("period", periodId);
+    }
+
+    return `${url.pathname}${url.search}`;
+  }
+
   private async get(path: string): Promise<unknown> {
     const hit = this.cache.get(path);
     if (hit && hit.expires > this.clock()) return hit.value;
+
+    const locationKey = path.split("/")[2]!;
+    const denied = this.denied.get(locationKey);
+    if (denied && denied.expires > this.clock()) throw denied.error;
+    this.denied.delete(locationKey);
 
     const running = this.pending.get(path);
     if (running) return running;
@@ -119,11 +160,31 @@ export class DiningService {
           signal: AbortSignal.timeout(10000),
         });
 
+        if (response.status === 401 || response.status === 403) {
+          const expires = this.clock() + 60_000;
+          const error = new ApiError(
+            503,
+            "UPSTREAM_ACCESS_DENIED",
+            `Dine On Campus denied the backend request (HTTP ${response.status}). Confirm permitted server access with the provider; menu URLs and parsing cannot resolve this denial.`,
+            response.status,
+            new Date(expires).toISOString(),
+          );
+
+          for (const [key, denial] of this.denied) {
+            if (denial.expires <= this.clock()) this.denied.delete(key);
+          }
+          if (this.denied.size >= 256)
+            this.denied.delete(this.denied.keys().next().value!);
+          this.denied.set(locationKey, { expires, error });
+          throw error;
+        }
+
         if (!response.ok)
           throw new ApiError(
             502,
             "UPSTREAM_FAILURE",
             `Dining provider returned HTTP ${response.status}.`,
+            response.status,
           );
 
         const value: unknown = await response.json();
@@ -158,10 +219,11 @@ export class DiningService {
     return request;
   }
 
-  async getPeriods(location: string, date: string): Promise<Periods> {
-    const value = await this.get(
-      `/locations/${location}/periods/?date=${date}`,
-    );
+  async getPeriods(
+    location: string,
+    date = localParts(new Date(this.clock())).date,
+  ): Promise<Periods> {
+    const value = await this.get(this.endpoint(location, "periods/", date));
     if (!record(value) || !Array.isArray(value.periods))
       throw new ApiError(502, "UPSTREAM_INVALID", "Invalid periods response.");
 
@@ -179,11 +241,7 @@ export class DiningService {
   }
 
   async getMenu(location: string, date: string, id: string): Promise<Menu> {
-    return parseMenu(
-      await this.get(
-        `/locations/${location}/menu?date=${date}&period=${encodeURIComponent(id)}`,
-      ),
-    );
+    return parseMenu(await this.get(this.endpoint(location, "menu", date, id)));
   }
 }
 

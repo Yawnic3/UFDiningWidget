@@ -32,6 +32,8 @@ export function createApp(service = new MenuService(loadSchedules())) {
         error: {
           code: e.code,
           message: e.message,
+          upstreamStatus: e.upstreamStatus,
+          retryAt: e.retryAt,
           retryAfterSeconds: e.status >= 500 ? 900 : undefined,
         },
       });

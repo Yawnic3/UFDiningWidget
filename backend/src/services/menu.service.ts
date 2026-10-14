@@ -33,6 +33,9 @@ interface ServiceWindow {
   availability: "available" | "unavailable";
   items: string[];
   reason?: string;
+  message?: string;
+  upstreamStatus?: number;
+  retryAt?: string;
 }
 
 interface StationResult {
@@ -46,8 +49,8 @@ interface StationResult {
 interface DailyData {
   periods?: Periods;
   menus: Map<string, Menu>;
-  error?: string;
-  menuErrors?: Map<string, string>;
+  error?: ApiError;
+  menuErrors?: Map<string, ApiError>;
 }
 
 export class MenuService {
@@ -59,9 +62,13 @@ export class MenuService {
     > = diningService,
   ) {}
 
-  private async dailyData(location: string, date: string): Promise<DailyData> {
+  private async dailyData(
+    location: string,
+    date: string,
+    requestedMeal?: Meal,
+  ): Promise<DailyData> {
     const menus = new Map<string, Menu>();
-    const menuErrors = new Map<string, string>();
+    const menuErrors = new Map<string, ApiError>();
     let periods: Periods;
 
     try {
@@ -71,7 +78,14 @@ export class MenuService {
         throw error;
       return {
         menus,
-        error: error instanceof ApiError ? error.code : "UPSTREAM_FAILURE",
+        error:
+          error instanceof ApiError
+            ? error
+            : new ApiError(
+                502,
+                "UPSTREAM_FAILURE",
+                "Dining provider request failed.",
+              ),
       };
     }
 
@@ -79,6 +93,7 @@ export class MenuService {
       periods.periods.map(async (period) => {
         if (!["breakfast", "lunch", "dinner"].includes(normalize(period.name)))
           return;
+        if (requestedMeal && normalize(period.name) !== requestedMeal) return;
 
         try {
           const menu =
@@ -105,7 +120,13 @@ export class MenuService {
             throw error;
           menuErrors.set(
             period.id,
-            error instanceof ApiError ? error.code : "UPSTREAM_FAILURE",
+            error instanceof ApiError
+              ? error
+              : new ApiError(
+                  502,
+                  "UPSTREAM_FAILURE",
+                  "Dining provider request failed.",
+                ),
           );
         }
       }),
@@ -195,6 +216,9 @@ export class MenuService {
 
         // A provisional schedule never proves station-specific meal availability.
         const available = Boolean(liveStation?.items.length);
+        const failure =
+          data.error ?? (period ? data.menuErrors?.get(period.id) : undefined);
+
         return [
           {
             meal: window.meal,
@@ -208,10 +232,14 @@ export class MenuService {
             items: available ? liveStation!.items : [],
             ...(!available
               ? {
-                  reason:
-                    data.error ??
-                    (period ? data.menuErrors?.get(period.id) : undefined) ??
-                    "MENU_UNAVAILABLE",
+                  reason: failure?.code ?? "MENU_UNAVAILABLE",
+                  ...(failure
+                    ? {
+                        message: failure.message,
+                        upstreamStatus: failure.upstreamStatus,
+                        retryAt: failure.retryAt,
+                      }
+                    : {}),
                 }
               : {}),
           },
@@ -255,7 +283,7 @@ export class MenuService {
         return !result.next && schedule.windows.length > 0;
       });
       const data = needsData
-        ? await this.dailyData(location.locationId, serviceDate)
+        ? await this.dailyData(location.locationId, serviceDate, query.meal)
         : { menus: new Map<string, Menu>() };
 
       for (const result of results) {

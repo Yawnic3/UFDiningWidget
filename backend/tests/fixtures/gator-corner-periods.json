@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-14",
+  "menu": {
+    "period": {
+      "id": "6acfdf7b3860dda1817184c5",
+      "name": "Breakfast",
+      "categories": [
+        {
+          "name": "Homestyle",
+          "items": [
+            {
+              "name": "Bruschetta Egg Scramble",
+              "calories": 210
+            },
+            {
+              "name": "Apple Danish",
+              "calories": 120
+            },
+            {
+              "name": "Turmeric Fried Potatoes",
+              "calories": 130
+            },
+            {
+              "name": "Turkey Sausage Patty",
+              "calories": 140
+            },
+            {
+              "name": "Toasted Oatmeal, Banana, Honey",
+              "calories": 190
+            }
+          ]
+        },
+        {
+          "name": "500 Degrees",
+          "items": [
+            {
+              "name": "Meatless Vegetarian Sausage Patty",
+              "calories": 70
+            },
+            {
+              "name": "Maple Sticky Bun",
+              "calories": 300
+            },
+            {
+              "name": "Pear, Sausage, and Potato Casserole",
+              "calories": 440
+            },
+            {
+              "name": "French Toast Sticks",
+              "calories": 230
+            }
+          ]
+        },
+        {
+          "name": "Grill Works",
+          "items": [
+            {
+              "name": "Chocolate Chip Muffin",
+              "calories": 170
+            },
+            {
+              "name": "Bruschetta Egg Scramble",
+              "calories": 210
+            },
+            {
+              "name": "Apple Danish",
+              "calories": 120
+            },
+            {
+              "name": "Turmeric Fried Potatoes",
+              "calories": 130
+            },
+            {
+              "name": "Turkey Sausage Patty",
+              "calories": 140
+            }
+          ]
+        },
+        {
+          "name": "Sweet Shoppe",
+          "items": [
+            {
+              "name": "Toasted Oatmeal, Banana, Honey",
+              "calories": 190
+            },
+            {
+              "name": "Meatless Vegetarian Sausage Patty",
+              "calories": 70
+            }
+          ]
+        }
+      ]
+    },
+    "date": "2026-10-14"
+  },
+  "locationId": "62a8c2b8a9f13a0de3af64c4",
+  "periods": [
+    {
+      "id": "6acfdf7b3860dda1817184c5",
+      "name": "Breakfast",
+      "slug": "breakfast"
+    },
+    {
+      "id": "6acfdf7b3860dda1817184c7",
+      "name": "Lunch",
+      "slug": "lunch"
+    },
+    {
+      "id": "6acfdf7b3860dda1817184c6",
+      "name": "Dinner",
+      "slug": "dinner"
+    }
+  ]
+}

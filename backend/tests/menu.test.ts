@@ -439,7 +439,7 @@ test("upstream failures are not cached", async () => {
   let calls = 0;
   const service = new DiningService(async () => {
     calls++;
-    return new Response(".", { status: 403 });
+    return new Response(".", { status: 503 });
   });
   for (let i = 0; i < 2; i++)
     await assert.rejects(service.getPeriods("x", "2026-10-14"), {

@@ -64,6 +64,20 @@ Empty or missing food data does **not** imply closure. A station inside a schedu
 
 Upstream outages return schedule information with unavailable menus and reason `UPSTREAM_FAILURE`. Structurally invalid or mismatched menus return HTTP 502. HTTP errors use `{ "error": { "code": "...", "message": "..." } }`.
 
+Unavailable upstream requests also include a diagnostic `message` and, for HTTP failures, `upstreamStatus` (for example, 403). The supplied Gator Corner periods payload is covered by a regression fixture: embedded breakfast is reused, actual item order is preserved, and nutrition fields are discarded. An explicit meal query fetches only that meal's menu.
+
+HTTP 401/403 is reported as `UPSTREAM_ACCESS_DENIED`, with `upstreamStatus`, an actionable message, and `retryAt`. A 60-second cooldown per location prevents repeated blocked requests across dates and meals. Successful unexpired cached menus can still be used; ordinary outages do not enter this access-denial cooldown.
+
+To diagnose requests from the same terminal as your backend:
+
+```powershell
+npm run diagnose:upstream
+# Or inspect a specific date:
+npm run diagnose:upstream -- 2026-10-14
+```
+
+This prints the requested URL, HTTP status, server and content-type headers, redirects, and published period IDs when available. It never prints cookies or nutrition fields. A direct request returning 403 while Chrome succeeds indicates different treatment of the backend request; the response alone does not identify whether the provider requires authorized credentials, permitted client headers, or other server-access approval. Confirm the allowed integration method with Dine On Campus. Do not copy browser session credentials or treat a hardcoded period ID as an access fix.
+
 ## Built-in schedules
 
 All selection uses the **America/New_York** local date, weekday, and time, independently of the server or device timezone. API timestamps are serialized as UTC ISO instants for interoperability; UTC clock hours never decide which meal is served. Windows include their start and exclude their end.

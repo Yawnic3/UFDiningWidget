@@ -488,3 +488,19 @@ test("HTTP endpoints, invalid parameters, scheduled queries and safe unavailable
     );
   }
 });
+
+test("menu request failures retain unavailable reason without inferring closure", async () => {
+  const source = {
+    getPeriods: provider().getPeriods,
+    getMenu: async (): Promise<Menu> => {
+      throw Error("offline");
+    },
+  };
+  const result = await new MenuService(
+    DEFAULT_SCHEDULES,
+    source,
+  ).getCurrentMenu("broward", ["Gator Grill"], at("2026-10-14", "12:00"));
+
+  assert.equal(result.stations[0].status, "unknown");
+  assert.equal(result.stations[0].current?.reason, "UPSTREAM_FAILURE");
+});

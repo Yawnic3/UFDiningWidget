@@ -47,6 +47,7 @@ interface DailyData {
   periods?: Periods;
   menus: Map<string, Menu>;
   error?: string;
+  menuErrors?: Map<string, string>;
 }
 
 export class MenuService {
@@ -60,11 +61,14 @@ export class MenuService {
 
   private async dailyData(location: string, date: string): Promise<DailyData> {
     const menus = new Map<string, Menu>();
+    const menuErrors = new Map<string, string>();
     let periods: Periods;
 
     try {
       periods = await this.dining.getPeriods(location, date);
     } catch (error) {
+      if (error instanceof ApiError && error.code === "UPSTREAM_INVALID")
+        throw error;
       return {
         menus,
         error: error instanceof ApiError ? error.code : "UPSTREAM_FAILURE",
@@ -99,11 +103,15 @@ export class MenuService {
           // Availability is tracked separately from scheduled hours. Never infer closure.
           if (error instanceof ApiError && error.code === "UPSTREAM_INVALID")
             throw error;
+          menuErrors.set(
+            period.id,
+            error instanceof ApiError ? error.code : "UPSTREAM_FAILURE",
+          );
         }
       }),
     );
 
-    return { periods, menus };
+    return { periods, menus, menuErrors };
   }
 
   private windows(
@@ -135,11 +143,13 @@ export class MenuService {
 
     return windows
       .flatMap((window) => {
-      const listedPeriod = periods.find(
+        const listedPeriod = periods.find(
           (period) => normalize(period.name) === window.meal,
         );
-      const menu = listedPeriod ? data.menus.get(listedPeriod.id) : undefined;
-      const period = listedPeriod ? { ...listedPeriod, ...menu?.period } : undefined;
+        const menu = listedPeriod ? data.menus.get(listedPeriod.id) : undefined;
+        const period = listedPeriod
+          ? { ...listedPeriod, ...menu?.period }
+          : undefined;
         const liveStation = menu?.stations.find(
           (candidate) => normalize(candidate.name) === normalize(station),
         );
@@ -196,7 +206,14 @@ export class MenuService {
               ? ("available" as const)
               : ("unavailable" as const),
             items: available ? liveStation!.items : [],
-            ...(!available ? { reason: data.error ?? "MENU_UNAVAILABLE" } : {}),
+            ...(!available
+              ? {
+                  reason:
+                    data.error ??
+                    (period ? data.menuErrors?.get(period.id) : undefined) ??
+                    "MENU_UNAVAILABLE",
+                }
+              : {}),
           },
         ];
       })
